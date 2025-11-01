@@ -10,7 +10,6 @@ export const POST: RequestHandler = async ({request}) => {
     return text("successfully inserted values");
 
   } catch (e) {
-    console.log(e)
     return error(401, "Client error")
   }
 
