@@ -1,7 +1,6 @@
 import { fail, type Actions } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 import { transportRoutes } from "$lib/server/db/schema";
-import { db } from "$lib/server/db";
 import { getBusRoutes, insertBusRoute } from "$lib/server/db/bus";
 
 export const load: PageServerLoad = async () => {

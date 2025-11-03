@@ -1,5 +1,5 @@
 
-export function isEquals<T extends number>(a: T[] | undefined, b: T[] | undefined, tolerance: number = 1): boolean {
+export function isEquals<T extends number>(a: T[] | undefined, b: T[] | undefined, tolerance: number = 1e-5): boolean {
   if (!a || !b) {
     return false;
   }

@@ -2,7 +2,7 @@
 
 import '../app.css'
 
-import {addRoute, setPath, setPin} from '$lib/map/route';
+import {addRoute, setPath, setPin, stateData} from '$lib/map/route.svelte';
 import {onMount} from 'svelte';
 import {createMap, pinSource, routeSource, seedMap} from '$lib/map/map';
 import type {Map} from 'ol';
@@ -16,8 +16,10 @@ let suggested_locs: Location[] = $state([]);
 */
 
 let map: Map | null = null;
+let clickPulse: number = $state(0);
+
 let statusText: HTMLDivElement | null = null;
-let sent: number = $state(0);
+let statusPulse: number = $state(0);
 
 let {data}: PageProps = $props();
 
@@ -40,6 +42,9 @@ let actions = $state<{name: string, active: boolean, funct: (id: string, c: Coor
 
 ])
 
+let totalCost = $derived.by(() => {
+  
+});
 onMount(() => {
   map = createMap();
   seedMap(data.routes)
@@ -59,15 +64,11 @@ $effect( () => {
 
   }
   */
+  if (clickPulse) {
+    timeoutList = [...timeoutList, setTimeout(() => setPath(), 1000)];
 
-  if (actions[0].active || actions[1].active) {
-    console.log("active")
-    if (pinSource.getFeatureById("start") && pinSource.getFeatureById("end")) {
-      console.log("has features")
-      timeoutList = [...timeoutList, setTimeout(() => setPath(), 1000)];
-    }
   }
-  if (sent && statusText) {
+  if (statusPulse && statusText) {
     statusText.style.opacity = "1";
     timeoutList = [...timeoutList, setTimeout( () => {statusText!.style.opacity = "0"}, 3000)];
   }
@@ -77,6 +78,7 @@ $effect( () => {
     
 
 const onclick = async (e: MouseEvent & {currentTarget: EventTarget & HTMLDivElement}) => {
+  clickPulse = (clickPulse + 1) % 2;
 
   if (!map) {
     return;
@@ -123,8 +125,7 @@ const onclick = async (e: MouseEvent & {currentTarget: EventTarget & HTMLDivElem
         return async ({result}) => {
         console.log(result.type);
         if (result.type == "success") {
-        console.log("ehe")
-        sent = 1 + (sent % 2);
+        statusPulse = 1 + (statusPulse % 2);
         }
         }
 
@@ -144,20 +145,34 @@ const onclick = async (e: MouseEvent & {currentTarget: EventTarget & HTMLDivElem
 
       </form>
     {/if}
+    <div>
+      {#each stateData.result as res}
+        {@const fare = data.routes.find(v => v.name == res.id)?.fare}
+        <div>
+          <b>{res.id}</b>
+          <p>distance: {res.distance.toFixed(2)} meters</p>
+          <p>fare: {fare} Php / Km</p>
+          <p>cost: PHP { ((fare || 0) * (res.distance/1000)).toFixed(2) }</p>
+        </div>
+      {/each}
+      <p><b>total cost: </b> </p>
+    </div>
+    <div>
+        
+    </div>
   </div>
 
   <div 
-        id="map" 
-        onkeypress={null} 
-        onclick={onclick} 
-        role="button" 
-        tabindex="0"
-        class="flex-1"
-        >
-        <p bind:this={statusText} class="min-w-10 bg-white w-[10em] rounded-sm transition-opacity opacity-0 absolute z-1 top-8/9 left-1/2 text-center py-2">
-        route added!
-        </p>
+    id="map" 
+    onkeypress={null} 
+    onclick={onclick} 
+    role="button" 
+    tabindex="0"
+    class="flex-1"
+  >
+    <p bind:this={statusText} class="min-w-10 bg-white w-[10em] rounded-sm transition-opacity opacity-0 absolute z-1 top-8/9 left-1/2 text-center py-2">
+      route added!
+    </p>
   </div>
-
 </div>
 

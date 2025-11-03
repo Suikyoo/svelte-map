@@ -8,6 +8,7 @@ import type {Vector} from 'ol/source';
 import {fromLonLat, toLonLat} from 'ol/proj';
 import { isEquals } from '$lib/utils/array';
 
+export const stateData: {result: {id: string, distance: number}[]} = $state({result: []});
 
 export interface Data {
   routes?: {
@@ -24,7 +25,7 @@ export interface Data {
 }
 
 export interface Segment {
-  coordinates: Coordinate[],
+  range: number[];
   distance: number,
 }
 
@@ -81,45 +82,36 @@ export async function setPath(): Promise<void> {
 
   if (routes) {
     for (const userRoute of routes) {
-      const c = codeToCoords(userRoute.geometry)
+      let c = codeToCoords(userRoute.geometry)
       const path = new Feature({geometry: new LineString(c)});
       path.setId(userRoute.geometry);
       pathSource.addFeature(path);
 
-      let currLoc = start;
-      let maxSegment: Segment & { id: string} = {coordinates: [], distance: 0, id: ""};
-      for (const busRoute of busRoutes) {
-        const s = getSegmentatPoint(c.map(v => toLonLat(v)), busRoute.coordinates.map(v => toLonLat(v)), currLoc);
-        if (s.distance > maxSegment.distance) {
-          maxSegment = {...s, id: busRoute.id || ""};
-        }
-      }
-      const segment = new Feature({geometry: new LineString(maxSegment.coordinates.map(v => fromLonLat(v)))});
-      segment.setId(maxSegment.id);
-      segmentSource.addFeature(segment);
-      /*
-      while (curr_loc != end) {
-        console.log(curr_loc, end);
-        let maxSegment: Segment & { id: string} = {coordinates: [], distance: 0, id: ""};
+      while (c.length > 1) {
+        let maxSegment = [-1, -1]
+        let segmentId: string = "";
 
         for (const busRoute of busRoutes) {
-          const s = getSegmentatPoint(c, busRoute.coordinates, curr_loc);
-          console.log(s);
-          if (s.distance > maxSegment.distance) {
-            maxSegment = {...s, id: busRoute.id || ""};
+          const s = getSegment(c.map(v => toLonLat(v)), busRoute.coordinates.map(v => toLonLat(v)));
+          if (s[1] - s[0] > maxSegment[1] - maxSegment[0]) {
+            maxSegment = [...s];
+            segmentId = busRoute.id || "";
           }
         }
+        if (maxSegment.every(v => v == -1)) {
+          break;
+        }
 
-        const segment = new Feature({geometry: new LineString(maxSegment.coordinates)});
-        segment.setId(maxSegment.id);
+        const segment = new Feature({geometry: new LineString(c.slice(maxSegment[0], maxSegment[1] + 1))});
+        segment.setId(segmentId);
         segmentSource.addFeature(segment);
 
+        c = c.toSpliced(maxSegment[0], maxSegment[1] - maxSegment[0] + 1)
+
       }
-      */
     }
   }
-
-
+  stateData.result = segmentSource.getFeatures().map(f => ({id: f.getId()?.toString() || "", distance: f.getGeometry()?.getLength() || 0}))
 
 }
 
@@ -184,39 +176,36 @@ function createFeature(feature: Feature, id: string, src: Vector): void {
 //the same string of coordinates would look the same if reversed,
 //whether you start from the start point to end point or vice versa
 
-//by having an anchor(starting) coordinate. I can try to determine the direction
-//This also fits well for the main purpose of this function to have a starting coordinate to check for.
-
 //due to circumstances, a here is the reference coordinates. 
 //Just know that you can't mix a and b interchangeably as arguments to this function 
-function getSegmentatPoint(a: Coordinate[], b: Coordinate[], anchor: Coordinate): Segment {
 
-  let length = 0;
-  let start_index = a.findIndex(c => isEquals<number>(c, anchor));
-  let b_index = b.findIndex(c => isEquals<number>(c, anchor));
+//update: changed the function to just get the points of intersection
+//returns the first segment that matches the "a" coordinate
+function getSegment(a: Coordinate[], b: Coordinate[]): number[] {
+  let range = [-1, -1];
 
-  let direction = 0;
-
-  //we're supposed to assume that a is the correct order of coordinates
-  for (const d of [-1, 1]) {
-    if (isEquals(a.at(start_index + 1), b.at(b_index + d))) {
-      direction = d;
+  const check = (coord: Coordinate, coords: Coordinate[]): boolean => {
+    for (let j = 0; j < coords.length; j++) {
+      if (isEquals(coord, coords[j])) {
+        return true;
+      }
     }
+    return false;
   }
 
-  for (let i=start_index; i<a.length; i++) {
-    if (isEquals(b.at(b_index), a.at(i))) {
-      length += 1;
-    } 
+  for (let i = 0; i < a.length; i++) {
+    if (check(a[i], b)){
+      if (range[0] == -1) {
+        range[0] = i;
+      }
+      range[1] = i;
+    }
     else {
-      break;
+      if (range[0] != -1) {
+        return range;
+      }
     }
-
-    b_index += direction;
-
   }
-
-  const coordinates = a.slice(start_index, start_index + length);
-  const distance = new LineString(coordinates).getLength();
-  return {coordinates, distance};
+  return range;
+  //const distance = new LineString(coordinates).getLength();
 }

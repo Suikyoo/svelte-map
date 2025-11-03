@@ -53,9 +53,14 @@ export function createMap() {
 
   map.addLayer(new layer.Vector({
     source: segmentSource,
-    style: new Style({
-      stroke: new Stroke({color: "yellow", width: 4,})
-    })
+    style: (f) => [
+      new Style({
+      stroke: new Stroke({color: "black", width: 4, lineCap: "round"})
+      }), 
+      new Style({
+      stroke: new Stroke({color: hashColor(f.getId()), width: 2,})
+      }), 
+    ],
   }));
 
   map.addLayer(new layer.Vector({

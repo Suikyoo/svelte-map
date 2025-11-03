@@ -7,7 +7,7 @@
 
 ## User Pathfinding
 
-- Create the "get_segment" algorithm. How much of a bus route is in the start-end route
+- ### Create the "get_segment" algorithm. How much of a bus route is in the start-end route
 - ### Create at least an in-memory data structure for the bus routes (fare, speed, etc)
 - Create a visualization of the bus routes you'd take to reach the destination
 
