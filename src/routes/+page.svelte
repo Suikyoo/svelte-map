@@ -2,23 +2,24 @@
 
 import '../app.css'
 
-import type {Location} from '$lib/types/location';
-import type { routeTable } from '$lib/server/db/schema';
-import {addRoute, setPin} from '$lib/map/route';
+import {addRoute, setPath, setPin} from '$lib/map/route';
 import {onMount} from 'svelte';
-import {createMap} from '$lib/map/map';
+import {createMap, pinSource, routeSource, seedMap} from '$lib/map/map';
 import type {Map} from 'ol';
-	import type {Coordinate} from 'ol/coordinate';
+import type {Coordinate} from 'ol/coordinate';
+import {enhance} from '$app/forms';
+import type { PageData, PageProps } from './$types';
 
-let map: Map | null = null;
-
-const currLine: typeof routeTable.$inferInsert = {coordinates: []};
-
+/*
 let searchString: string = $state("");
 let suggested_locs: Location[] = $state([]);
+*/
 
+let map: Map | null = null;
 let statusText: HTMLDivElement | null = null;
-let sent: boolean = $state(false);
+let sent: number = $state(0);
+
+let {data}: PageProps = $props();
 
 let actions = $state<{name: string, active: boolean, funct: (id: string, c: Coordinate) => void}[]>([
   {
@@ -40,13 +41,15 @@ let actions = $state<{name: string, active: boolean, funct: (id: string, c: Coor
 ])
 
 onMount(() => {
-console.log("ehe")
- map = createMap();
+  map = createMap();
+  seedMap(data.routes)
+
 })
 
 $effect( () => {
   let timeoutList: NodeJS.Timeout[] = [];
 
+  /*
   if (searchString) {
     timeoutList = [...timeoutList, setTimeout( async() => {
       fetch(`/search/${encodeURIComponent(searchString)}`).then( async (res) => {
@@ -55,10 +58,18 @@ $effect( () => {
     }, 1000)];
 
   }
+  */
 
+  if (actions[0].active || actions[1].active) {
+    console.log("active")
+    if (pinSource.getFeatureById("start") && pinSource.getFeatureById("end")) {
+      console.log("has features")
+      timeoutList = [...timeoutList, setTimeout(() => setPath(), 1000)];
+    }
+  }
   if (sent && statusText) {
     statusText.style.opacity = "1";
-    timeoutList = [...timeoutList, setTimeout( () => {statusText!.style.opacity = "0"}, 1000)];
+    timeoutList = [...timeoutList, setTimeout( () => {statusText!.style.opacity = "0"}, 3000)];
   }
 
   return () => timeoutList.forEach(e => clearTimeout(e))
@@ -80,23 +91,6 @@ const onclick = async (e: MouseEvent & {currentTarget: EventTarget & HTMLDivElem
   v.funct(v.name, loc);
 
 }
-const onkeypress = async (e: KeyboardEvent & {currentTarget: EventTarget & HTMLDivElement}) => {
-  if (e.key == "Enter") {
-    const res = await fetch("/map/route", {
-      method: "POST",
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(currLine),
-    });
-
-    if (res.ok) {
-      sent = !sent;
-
-    } else {
-
-    }
-  }
-}
-
 </script>
 
 <div class="w-full h-full flex flex-row">
@@ -118,19 +112,49 @@ const onkeypress = async (e: KeyboardEvent & {currentTarget: EventTarget & HTMLD
             {action.name}
       </button>
     {/each}
-    <p>Enter Route name before clicking on route: </p>
-    <input type="text" bind:value={actions[2].name}/>
+    {#if actions[2].active}
+      <form 
+        method="POST" 
+        use:enhance={
+        ({formData}) => {
+        const name = formData.get("name")?.toString()
+        formData.set("coordinates", JSON.stringify(routeSource.getFeatureById(name || "")?.getGeometry()?.getCoordinates()))
+
+        return async ({result}) => {
+        console.log(result.type);
+        if (result.type == "success") {
+        console.log("ehe")
+        sent = 1 + (sent % 2);
+        }
+        }
+
+        }}>
+        <p>Enter Route info before clicking on a route: </p>
+        <label>
+          Name: 
+          <input type="text" name="name" bind:value={actions[2].name} required/>
+        </label>
+
+        <label>
+          Fare: 
+          <input type="text" name="fare" required/>
+        </label>
+
+        <input class="bg-blue-600 text-white p-1 rounded-md" type="submit" value="Submit" />
+
+      </form>
+    {/if}
   </div>
 
   <div 
         id="map" 
-        onkeypress={onkeypress} 
+        onkeypress={null} 
         onclick={onclick} 
         role="button" 
         tabindex="0"
         class="flex-1"
         >
-        <p bind:this={statusText} class="min-w-10 bg-white w-[10em] rounded-sm transition-opacity opacity-0 absolute top-8/9 left-1/2 text-center py-2">
+        <p bind:this={statusText} class="min-w-10 bg-white w-[10em] rounded-sm transition-opacity opacity-0 absolute z-1 top-8/9 left-1/2 text-center py-2">
         route added!
         </p>
   </div>

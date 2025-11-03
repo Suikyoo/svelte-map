@@ -9,9 +9,16 @@ import Circle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import {hashColor} from '$lib/utils/color';
-import type {LineString, Point} from 'ol/geom';
+import {LineString, type Point} from 'ol/geom';
+import type { transportRoutes } from '$lib/server/db/schema';
 
-export const osrmSource = new source.Vector<Feature<LineString>>();
+//pin source: start and end points
+//route source: collection of routes to be taken by vehicles
+//path source: osrm-calculated path
+//segment source: matches routes between calculated path and the vehicle routes
+
+export const pathSource = new source.Vector<Feature<LineString>>();
+export const segmentSource = new source.Vector<Feature<LineString>>();
 export const pinSource = new source.Vector<Feature<Point>>();
 export const routeSource = new source.Vector<Feature<LineString>>();
 
@@ -29,16 +36,26 @@ export function createMap() {
   });
 
   map.addLayer(new layer.Vector({
-    source: osrmSource,
-  }));
-
-  map.addLayer(new layer.Vector({
     source: routeSource,
     style: (f) => (
       new Style({
-        stroke: new Stroke({color: hashColor(f.getId()), width: 4})
+        stroke: new Stroke({color: hashColor(f.getId()), width: 2, lineDash: [10, 10], lineJoin: "round"})
       })
     )
+  }));
+
+  map.addLayer(new layer.Vector({
+    source: pathSource,
+    style: new Style({
+      stroke: new Stroke({color: "#555", width: 3,})
+    })
+  }));
+
+  map.addLayer(new layer.Vector({
+    source: segmentSource,
+    style: new Style({
+      stroke: new Stroke({color: "yellow", width: 4,})
+    })
   }));
 
   map.addLayer(new layer.Vector({
@@ -57,3 +74,14 @@ export function createMap() {
 
 }
 
+export function seedMap(routes: typeof transportRoutes.$inferSelect[]) {
+  for (const r of routes) {
+    let f: Feature<LineString> | null;
+    f = routeSource.getFeatureById(r.name);
+    if (!f) {
+      f = new Feature({geometry: new LineString(r.coordinates)});
+      f.setId(r.name);
+      routeSource.addFeature(f);
+    }
+  }
+}
